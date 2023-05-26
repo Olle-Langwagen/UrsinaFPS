@@ -20,9 +20,22 @@ def start_game():
     title.enabled = False
     name_input_field.enabled = False
     start_button.enabled = False
+    damage_Text.enabled = True
+    damage_text.enabled = True
+    description.enabled = False
+    description2.enabled = False
+    description3.enabled = False
+    description4.enabled = False
+
+
 
 menu = Entity(enabled=True)
-title = Text(text="FPS Game", origin=(0, -3), scale=5, color=color.white)
+title = Text(text="Killer Head", origin=(0, -3), scale=5, color=color.white)
+#Add a description of the game
+description = Text(text="The goal is to do as much damage as possible without dying! Watch out for the obstacles!", origin=(0, -6), scale=1, color=color.white)
+description2 = Text(text="You can pick up damage and speed boosts to help you! They spawn every 15 seconds.", origin=(0, -4), scale=1, color=color.white)
+description3 = Text(text="The killer will get increased speed as the game progresses! He gets buffed every 15 seconds.", origin=(0, -2), scale=1, color=color.white)
+description4 = Text(text="Press TAB to pause", origin=(0, 0), scale=1, color=color.white)
 name_input_field = InputField(position=(0, -0.1), text="Enter your name")
 start_button = Button(text="Start", position=(0, -0.2), scale=(0.2, 0.1), color=color.green, on_click=start_game)
 
@@ -50,8 +63,8 @@ def format_scoreboard(scoreboard):
 def open_scoreboard():
     scoreboard = read_scoreboard()
     formatted_scoreboard = format_scoreboard(scoreboard)
-    scoreboard_panel.content = Text(text=formatted_scoreboard, origin=(0, 1), scale=2)
     scoreboard_panel.enabled = True
+    scoreboard_panel.content = Text(text=formatted_scoreboard, origin=(0, -0.5), scale=1)
 
 def close_scoreboard():
     scoreboard_panel.enabled = False
@@ -65,9 +78,11 @@ def on_die():
     enemy.enabled = False
     mouse.locked = False
     application.pause()
-    print_on_screen("You died!", position=(0,0), scale=5, duration=1)
+    print_on_screen("You died!", position=(-0.25,0), scale=5, duration=3)
     quit_button.enabled = True
     scoreboard_button.enabled = True
+    damage_text.enabled = False
+    damage_Text.enabled = False
 
 
 
@@ -91,30 +106,44 @@ player = Player()
 player.on_die = on_die
 
 player.enabled = False
-
-
-
+damage_Text = Text(text='Damage dealt:', position=(-0.87,0.47))
+damage_Text.enabled = False
+pickups = []
 class Pickup(Entity):
     def __init__(self, **kwargs):
-        super().__init__(parent=scene, model='cube', texture='UrsinaFPS\Assets\health_pack.png', scale=0.5, **kwargs)
+        super().__init__(model='cube', texture=None, scale=0.5, collider='box', **kwargs)
         self.pickup_type = random.choice(['damage', 'speed'])
+        if self.pickup_type == 'damage':
+            self.color = color.red
+        elif self.pickup_type == 'speed':
+            self.color = color.blue
 
     def on_pickup(self):
-        if distance(self.position, player.position) < 2:
-            if self.pickup_type == 'damage':
-                player.gun_damage += 1
-                print('Picked up damage boost!')
-            elif self.pickup_type == 'speed':
-                player.speed += 1
-                print('Picked up speed boost!')
-            self.disable()
+        if self.pickup_type == 'damage':
+            player.gun_damage += 1
+            # Show a pickup text for 2 seconds
+            message = Text(text='Picked up damage boost!', position=(0, 0.4), origin=(0, 0), scale=2, color=color.red)
+        elif self.pickup_type == 'speed':
+            player.speed += 1
+            # Show a pickup text for 2 seconds
+            message = Text(text='Picked up speed boost!', position=(0, 0.4), origin=(0, 0), scale=2, color=color.blue)
+        self.visible = False
+        self.disable()
+        self.enabled = False
+        pickups.remove(self)
+        destroy(message, delay=2)
 
 def spawn_pickup():
-    pickup = Pickup(position=(random.uniform(-20, 20), 0.5, random.uniform(-20, 20)))
-    invoke(spawn_pickup, delay=5)
+    position = (random.uniform(-20, 20), 0.5, random.uniform(-20, 20))
+    pickup = Pickup(position=position)
+    pickups.append(pickup)
+    
 
-# Call the spawn_pickup function every fifteen seconds
-invoke(spawn_pickup, delay=5)
+def spawn_pickups():
+    spawn_pickup()
+    invoke(spawn_pickups, delay=15)
+
+invoke(spawn_pickups, delay=15)
 
 
 
@@ -123,8 +152,8 @@ playergun = Entity(model="cube", position=(0.25,-0.25,1), parent=camera, scale=(
 playergun.muzzle_flash = Entity(parent=playergun, z=1, y=-2, x=2, world_scale=.3, model='quad', color=color.yellow, enabled=False)
 #variable for the damage dealt that will be used in the scoreboard
 damage_dealt = 0
-damage_text = Text(text='0', position=(0, 0))
-
+damage_text = Text(text='0', position=(-0.70,0.47))
+damage_text.enabled = False
 shootables_parent = Entity()
 
 mouse.traverse_target = shootables_parent
@@ -137,7 +166,7 @@ close_scoreboard_button = Button(text="Close", on_click=close_scoreboard, positi
 #obstacles and ground
 ground = Entity(model='plane', collider='box', scale=64, texture='Assets/pexels-stefwithanf-3580088-1920x1080-25fps.mp4',shader=basic_lighting_shader)
 
-# Scoreboard panel
+# Scoreboard panel(displays the scoreboard)
 scoreboard_panel = WindowPanel(title='Scoreboard', content=None, enabled=False, draggable=True, resizable=True, close_button=True, min_size=(400, 300), max_size=(800, 600))
 
 for i in range(10):
@@ -148,12 +177,6 @@ for i in range(10):
         scale_y = random.uniform(4,7),
         shader=basic_lighting_shader,
         )
-
-#timer
-timer = Text(text='0', position=(-0.87,0.47), t=0)
-pickup_timer = Text(text='0', position=(-0.64,0.47), t=0)
-pickup_text = Text(text='Pickup in: ', position=(-0.76,0.47))
-
 
 #skjuta
 def shoot():
@@ -167,20 +190,16 @@ def shoot():
         if mouse.hovered_entity == enemy:
             damage_dealt += player.gun_damage
             damage_text.text = damage_dealt
-            enemy.blink(color.white, duration=.1)
+            enemy.blink(color.white, duration=.2)
 
 #main update for shooting input, timer
 def update():
     if held_keys['left mouse']:
-        
         shoot()
-    #Timer
-    timer.t += time.dt
-    timer.text = str(round(timer.t, 2))
-    pickup_timer.text = str(round(-timer.t+10, 2))
-    ray = raycast(player.position, player.forward, distance=2, ignore=[player])
-    if ray.hit and isinstance(ray.entity, Pickup):
-        ray.entity.on_pickup()
+
+    for pickup in pickups:
+        if distance(player.position, pickup.position) < 2:
+            pickup.on_pickup()
     
 #enkelt sluta, kommer ändra sen
 def input(key):
@@ -202,8 +221,6 @@ def pause(key):
 
         #enable all the menu/pause buttons
         quit_button.enabled = editor_camera.enabled
-        scoreboard_button.enabled = editor_camera.enabled
-        scoreboard_panel.enabled = editor_camera.enabled
 
 pause_handler = Entity(ignore_paused=True, input=pause)
 
@@ -212,7 +229,7 @@ pause_handler = Entity(ignore_paused=True, input=pause)
 class Enemy(Entity):
     def __init__(self, **kwargs):
         
-        super().__init__(parent=shootables_parent, model='Assets/ToughGuy.obj', scale_y=2,scale_x=2,scale_z=2, origin_y=-0.75, color=color.light_gray, collider='box',shader=basic_lighting_shader, enemyspeed=2, **kwargs)
+        super().__init__(parent=shootables_parent, model='Assets/ToughGuy.obj', scale_y=2,scale_x=2,scale_z=2, origin_y=-0.75, color=color.light_gray, collider='box',shader=basic_lighting_shader, enemyspeed=1, **kwargs)
         self.color = color.red
         self.has_written_to_csv = False
 
@@ -240,14 +257,14 @@ class Enemy(Entity):
             if dist > 2:
                 self.position += self.forward * time.dt * 5
         
-#Increase enemy speed every 30 seconds
+#Increase enemy speed every 15 seconds
 def increase_enemy_speed():
     enemy.increase_speed()
-    invoke(increase_enemy_speed, delay=1)
+    invoke(increase_enemy_speed, delay=15)
 
 enemy = Enemy()
 enemy.enabled = False
-invoke(increase_enemy_speed, delay=1)
+invoke(increase_enemy_speed, delay=15)
 
 #lighting
 sun = DirectionalLight()
